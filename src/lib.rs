@@ -96,22 +96,25 @@ pub fn spacing(text: &str) -> String {
                         '"', '\'', '[', ']', '{', '}', '<', '>', '@', '#', '%', '^', '&', '*', '-',
                         '_', '=', '+', '|', '\\',
                     ];
-
                     // 全角标点等特殊字符
                     let special_cur_full = vec![
                         '，', '。', '！', '？', '：', '；', '“', '”', '‘', '’', '《', '》', '【',
                         '】', '（', '）', '—', '…',
                     ];
 
-                    // 特殊情况：货币符号后跟数字不加空格
+                    // special case: 货币符号后跟数字不加空格
                     let is_currency_before_number =
                         (prev_ch == '$' || prev_ch == '¥' || prev_ch == '€')
                             && cur_ch_width.is_full()
                             && !special_cur_full.contains(&cur_ch);
 
+                    // special case: 换行符不加空格
+                    let is_line_break = prev_ch == '\n';
+
                     if !special_pre_half.contains(&prev_ch)
                         && !special_cur_full.contains(&cur_ch)
                         && !is_currency_before_number
+                        && !is_line_break
                     {
                         result.push(' ');
                     }
