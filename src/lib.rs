@@ -1,0 +1,294 @@
+use std::collections::VecDeque;
+use unicode_width::UnicodeWidthChar;
+
+#[derive(Debug, PartialEq)]
+enum CharWidth {
+    Full,
+    Half,
+}
+
+impl CharWidth {
+    fn from_char(c: char) -> Self {
+        if c.width().map_or(false, |w| w > 1) {
+            Self::Full
+        } else {
+            Self::Half
+        }
+    }
+
+    fn is_full(&self) -> bool {
+        self == &Self::Full
+    }
+
+    fn is_half(&self) -> bool {
+        self == &Self::Half
+    }
+}
+
+/// （在一定条件下）在全角和半角字符之间添加空格
+///
+/// # Examples
+///
+/// ```
+/// use paranoid_space::spacing;
+///
+/// let text = "当你凝视着bug，bug也凝视着你";
+/// assert_eq!(spacing(text), "当你凝视着 bug，bug 也凝视着你");
+/// ```
+pub fn spacing(text: &str) -> String {
+    let mut origin: VecDeque<char> = text.chars().collect();
+    let mut result: Vec<char> = Vec::new();
+
+    let mut prev: Option<char> = None;
+    // let mut cur: Option<char> = None;
+    while let Some(cur_ch) = origin.pop_front() {
+        match (prev, cur_ch) {
+            (Some(prev_ch), cur_ch) => {
+                let prev_ch_width = CharWidth::from_char(prev_ch);
+                let cur_ch_width = CharWidth::from_char(cur_ch);
+
+                // case 0: prev is space
+                if prev_ch == ' ' {
+                    result.push(cur_ch);
+                    prev = Some(cur_ch);
+                    continue;
+                }
+
+                // case 1: prev is full, cur is half
+                if prev_ch_width.is_full() && cur_ch_width.is_half() {
+                    // special case: 全角字符与半角标点之间不加空格, 全角标点与半角字符之间不加空格
+                    let special_pre_full = vec![
+                        '，', '。', '！', '？', '：', '；', '“', '”', '‘', '’', '《', '》', '【',
+                        '】', '（', '）', '—', '…', '～', '·', '、',
+                    ];
+                    let special_cur_half = vec![',', '.', '!', '?', ':', ';', '"', '\''];
+
+                    // special case：货币符号后跟数字不加空格
+                    let is_currency_before_number =
+                        (prev_ch == '¥' || prev_ch == '€') && cur_ch.is_numeric();
+
+                    if cur_ch != ' '
+                        && !special_pre_full.contains(&prev_ch)
+                        && !special_cur_half.contains(&cur_ch)
+                        && !is_currency_before_number
+                    {
+                        result.push(' ');
+                    }
+                    result.push(cur_ch);
+                    prev = Some(cur_ch);
+                    continue;
+                }
+
+                // case 2: prev is half, cur is full
+                if prev_ch_width.is_half() && cur_ch_width.is_full() {
+                    // special case: 半角符号与全角字符不加空格，半角字符与全角标点间不加空格
+                    let special_pre_half = vec![
+                        '"', '\'', '[', ']', '{', '}', '<', '>', '@', '#', '%', '^', '&', '*', '-',
+                        '_', '=', '+', '|', '\\',
+                    ];
+
+                    // 全角标点等特殊字符
+                    let special_cur_full = vec![
+                        '，', '。', '！', '？', '：', '；', '“', '”', '‘', '’', '《', '》', '【',
+                        '】', '（', '）', '—', '…',
+                    ];
+
+                    // 特殊情况：货币符号后跟数字不加空格
+                    let is_currency_before_number =
+                        (prev_ch == '$' || prev_ch == '¥' || prev_ch == '€')
+                            && cur_ch_width.is_full()
+                            && !special_cur_full.contains(&cur_ch);
+
+                    if !special_pre_half.contains(&prev_ch)
+                        && !special_cur_full.contains(&cur_ch)
+                        && !is_currency_before_number
+                    {
+                        result.push(' ');
+                    }
+                    result.push(cur_ch);
+                    prev = Some(cur_ch);
+                    continue;
+                }
+
+                // other cases:
+                // prev is full, cur is full,
+                // prev is half, cur is half
+                result.push(cur_ch);
+                prev = Some(cur_ch);
+                continue;
+            }
+            // the first char
+            (None, cur) => {
+                result.push(cur);
+                prev = Some(cur);
+                continue;
+            }
+        }
+    }
+    // special case: if the last char is space, remove it
+    if result[result.len() - 1] == ' ' {
+        result.pop();
+    }
+
+    // 将结果 Vec 转换为字符串
+    result.into_iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_char_width() {
+        assert_eq!(CharWidth::from_char(' '), CharWidth::Half);
+        assert_eq!(CharWidth::from_char('a'), CharWidth::Half);
+        assert_eq!(CharWidth::from_char('A'), CharWidth::Half);
+        assert_eq!(CharWidth::from_char('1'), CharWidth::Half);
+        assert_eq!(CharWidth::from_char('，'), CharWidth::Full);
+        assert_eq!(CharWidth::from_char('。'), CharWidth::Full);
+        assert_eq!(CharWidth::from_char('！'), CharWidth::Full);
+        assert_eq!(CharWidth::from_char('？'), CharWidth::Full);
+        assert_eq!(CharWidth::from_char('￥'), CharWidth::Full);
+        assert_eq!(CharWidth::from_char('$'), CharWidth::Half);
+        assert_eq!(CharWidth::from_char('中'), CharWidth::Full);
+    }
+
+    #[test]
+    fn test_spacing() {
+        // 中文和英文之间
+        assert_eq!(spacing("中文English"), "中文 English");
+        assert_eq!(spacing("中文English中文"), "中文 English 中文");
+
+        // 中文和数字之间
+        assert_eq!(spacing("中文123"), "中文 123");
+        assert_eq!(spacing("123中文"), "123 中文");
+
+        // 中文和符号之间
+        assert_eq!(spacing("中文!"), "中文!");
+        assert_eq!(spacing("中文?"), "中文?");
+
+        // 货币符号测试
+        assert_eq!(spacing("价格是$50和¥300"), "价格是 $50 和 ¥300");
+        assert_eq!(spacing("价格是¥300"), "价格是 ¥300");
+
+        // 复杂情况
+        assert_eq!(
+            spacing("当你凝视着bug，bug也凝视着你"),
+            "当你凝视着 bug，bug 也凝视着你"
+        );
+        assert_eq!(
+            spacing("与PM战斗的人，应当小心自己不要成为PM"),
+            "与 PM 战斗的人，应当小心自己不要成为 PM"
+        );
+        assert_eq!(
+            spacing("与PM战斗的人，应当小心自己不要成为 PM"),
+            "与 PM 战斗的人，应当小心自己不要成为 PM"
+        );
+        assert_eq!(
+            spacing("与PM战斗的人，应当小心自己不要成为PM "),
+            "与 PM 战斗的人，应当小心自己不要成为 PM"
+        );
+    }
+
+    #[test]
+    fn test_all_width() {
+        // 测试中英文混排
+        assert_eq!(
+            spacing("中文和拉丁字母English混排"),
+            "中文和拉丁字母 English 混排"
+        );
+
+        // 测试全角和半角数字
+        assert_eq!(
+            spacing("中文数字１２３４５６７８９０和半角数字1234567890混排"),
+            "中文数字１２３４５６７８９０和半角数字 1234567890 混排"
+        );
+
+        // 测试混合案例，包含函数名和引号
+        assert_eq!(
+            spacing("使用了Python的print()函数打印\"你好,世界\""),
+            "使用了 Python 的 print() 函数打印\"你好, 世界\""
+        );
+
+        // 测试货币符号
+        assert_eq!(
+            spacing("价格人民币¥100美元$100欧元€100英镑£100"),
+            "价格人民币 ¥100 美元 $100 欧元 €100 英镑 £100"
+        );
+
+        // 测试全角空格和半角空格
+        assert_eq!(
+            spacing("全角空格　和半角空格 混用"),
+            "全角空格　和半角空格 混用"
+        );
+
+        // 测试全角和半角字母数字混排
+        assert_eq!(
+            spacing("AＡBＢCＣ和abc以及1１２３和123混排"),
+            "A Ａ B Ｂ C Ｃ和 abc 以及 1 １２３和 123 混排"
+        );
+
+        // 测试路径表示
+        assert_eq!(
+            spacing("文件保存在~/Documents目录"),
+            "文件保存在 ~/Documents 目录"
+        );
+    }
+
+    #[test]
+    fn test_symbols() {
+        // 波浪号测试
+        assert_eq!(
+            spacing("用户目录是~，完整路径是~/Documents"),
+            "用户目录是 ~，完整路径是 ~/Documents"
+        );
+
+        // 括号测试
+        assert_eq!(spacing("函数add(a,b)返回a+b"), "函数 add(a,b) 返回 a+b");
+
+        // 路径测试
+        assert_eq!(
+            spacing("文件保存在/usr/local/bin/目录"),
+            "文件保存在 /usr/local/bin/ 目录"
+        );
+
+        // 点号测试
+        assert_eq!(
+            spacing("网址是example.com而不是example。com"),
+            "网址是 example.com 而不是 example。com"
+        );
+
+        // 引号测试
+        assert_eq!(
+            spacing(r#"他说"这很好"然后离开了"#),
+            r#"他说"这很好"然后离开了"#
+        );
+
+        // 复杂组合
+        assert_eq!(
+            spacing("安装命令是npm install --save-dev @types/react使用v16.8版本"),
+            "安装命令是 npm install --save-dev @types/react 使用 v16.8 版本"
+        );
+
+        // 货币符号
+        assert_eq!(spacing("价格是$50和¥300"), "价格是 $50 和 ¥300");
+
+        // 分隔符测试
+        assert_eq!(
+            spacing("name|age|gender表示不同字段"),
+            "name|age|gender 表示不同字段"
+        );
+
+        // 数学符号
+        assert_eq!(
+            spacing("5+3*2=11，需要满足x>0且y<100"),
+            "5+3*2=11，需要满足 x>0 且 y<100"
+        );
+
+        // 反引号
+        assert_eq!(
+            spacing("命令是`ls -la`，注意不要用''"),
+            "命令是 `ls -la`，注意不要用''"
+        );
+    }
+}
