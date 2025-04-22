@@ -1,27 +1,37 @@
 use std::collections::VecDeque;
 use unicode_width::UnicodeWidthChar;
 
+
+// 声明模块
+pub mod markdown;
+pub mod html;
+
+// Re-export 主要函数
+pub use markdown::spacing_markdown;
+pub use html::spacing_html;
+
+
 #[derive(Debug, PartialEq)]
-enum CharWidth {
-    Full,
-    Half,
+pub enum CharWidth {
+    Half,  // 半角字符
+    Full,  // 全角字符
 }
 
 impl CharWidth {
-    fn from_char(c: char) -> Self {
-        if c.width().map_or(false, |w| w > 1) {
-            Self::Full
-        } else {
-            Self::Half
+    pub fn from_char(c: char) -> Self {
+        match c.width() {
+            Some(1) | None => CharWidth::Half,
+            Some(2) => CharWidth::Full,
+            Some(_) => CharWidth::Full, // 其他宽度视为全角
         }
     }
-
-    fn is_full(&self) -> bool {
-        self == &Self::Full
+    
+    pub fn is_half(&self) -> bool {
+        matches!(self, CharWidth::Half)
     }
-
-    fn is_half(&self) -> bool {
-        self == &Self::Half
+    
+    pub fn is_full(&self) -> bool {
+        matches!(self, CharWidth::Full)
     }
 }
 
@@ -158,26 +168,26 @@ mod tests {
         // 中文和英文之间
         assert_eq!(spacing("中文English"), "中文 English");
         assert_eq!(spacing("中文English中文"), "中文 English 中文");
-
+        
         // 中文和数字之间
         assert_eq!(spacing("中文123"), "中文 123");
         assert_eq!(spacing("123中文"), "123 中文");
-
+        
         // 中文和符号之间
         assert_eq!(spacing("中文!"), "中文!");
         assert_eq!(spacing("中文?"), "中文?");
-
+        
         // 货币符号测试
         assert_eq!(spacing("价格是$50和¥300"), "价格是 $50 和 ¥300");
         assert_eq!(spacing("价格是¥300"), "价格是 ¥300");
-
+        
         // 复杂情况
         assert_eq!(
-            spacing("当你凝视着bug，bug也凝视着你"),
+            spacing("当你凝视着bug，bug也凝视着你"), 
             "当你凝视着 bug，bug 也凝视着你"
         );
         assert_eq!(
-            spacing("与PM战斗的人，应当小心自己不要成为PM"),
+            spacing("与PM战斗的人，应当小心自己不要成为PM"), 
             "与 PM 战斗的人，应当小心自己不要成为 PM"
         );
         assert_eq!(

@@ -67,17 +67,43 @@ echo "这是一个Example" | paranoid-space
 这是一个 Example
 ```
 
+## 特殊文件格式支持
+
+工具会根据文件扩展名自动选择合适的处理方式：
+
+- **Markdown文件** (`.md`, `.markdown`) - 保留Markdown语法，只对文本内容添加空格
+- **HTML文件** (`.html`, `.htm`) - 保留HTML标签，只对文本内容添加空格
+- **普通文本文件** - 对整个内容进行处理
+
+例如，处理Markdown文件时，代码块和行内代码不会被修改，而只有普通文本段落会被添加空格。
+
 ## 在代码中使用
 
 可以在 Rust 项目中将本库作为依赖引入：
 
 ```rust
+// 处理普通文本
 use paranoid_space::spacing;
+// 处理HTML文本
+use paranoid_space::spacing_html;
+// 处理Markdown文本
+use paranoid_space::spacing_markdown;
 
 fn main() {
-    let text = "数字 123 与中文之间需要空格";
+    // 处理普通文本
+    let text = "数字123与中文之间需要空格";
     let result = spacing(text);
     println!("{}", result);  // output: 数字 123 与中文之间需要空格
+    
+    // 处理HTML文本
+    let html = "<div>这是中文English混合</div>";
+    let html_result = spacing_html(html);
+    println!("{}", html_result);  // output: <div>这是中文 English 混合</div>
+    
+    // 处理Markdown文本
+    let md = "# 标题Title\n```code块不处理```";
+    let md_result = spacing_markdown(md);
+    println!("{}", md_result);  // output: # 标题 Title\n```code块不处理```
 }
 ```
 
