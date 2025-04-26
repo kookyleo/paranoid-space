@@ -1,0 +1,39 @@
+// https://pest.rs/book/examples/json.html
+
+WHITESPACE = { " " | "\t" | "\r" | "\n" }
+LEFT_BRACE = { "{" }
+RIGHT_BRACE = { "}" }
+LEFT_BRACKET = { "[" }
+RIGHT_BRACKET = { "]" }
+COLON = { ":" }
+COMMA = { "," }
+
+value = _{ object | array | string | number | boolean | null }
+object = {
+    LEFT_BRACE ~ RIGHT_BRACE |
+    LEFT_BRACE ~ pair ~ (COMMA ~ pair)* ~ RIGHT_BRACE
+}
+array = {
+    LEFT_BRACKET ~ RIGHT_BRACKET |
+    LEFT_BRACKET ~ value ~ (COMMA ~ value)* ~ RIGHT_BRACKET
+}
+string = ${ "\"" ~ inner ~ "\"" }
+number = @{
+    "-"?
+    ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
+    ~ ("." ~ ASCII_DIGIT*)?
+    ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
+}
+boolean = { "true" | "false" }
+null = { "null" }
+
+pair = _{ k_string ~ COLON ~ value }
+k_string = @{ string }
+inner = @{ char* }
+char = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+}
+
+json = _{ SOI ~ (object | array) ~ EOI }

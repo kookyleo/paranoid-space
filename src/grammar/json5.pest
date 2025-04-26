@@ -1,0 +1,47 @@
+// https://spec.json5.org/
+
+WHITESPACE = { " " | "\t" | "\r" | "\n" }
+COMMENT = { LINE_COMMENT | BLOCK_COMMENT }
+LINE_COMMENT = ${ "//" ~ LINE_COMMENT_BODY }
+LINE_COMMENT_BODY = @{ (!"\n" ~ ANY)* }
+BLOCK_COMMENT = ${ "/*" ~ BLOCK_COMMENT_BODY ~ "*/" }
+BLOCK_COMMENT_BODY = @{ (!"*/" ~ ANY)* }
+
+
+LEFT_BRACE = { "{" }
+RIGHT_BRACE = { "}" }
+LEFT_BRACKET = { "[" }
+RIGHT_BRACKET = { "]" }
+COMMA = { "," }
+COLON = { ":" }
+
+
+json = { SOI ~ value ~ EOI }
+value = _{ object | array | string | number | boolean | null }
+object = { LEFT_BRACE ~ (pair ~ (COMMA ~ pair)* ~ COMMA?)? ~ RIGHT_BRACE }
+array = { LEFT_BRACKET ~ (value ~ (COMMA ~ value)* ~ COMMA?)? ~ RIGHT_BRACKET }
+string = { single_quoted_string | double_quoted_string }
+k_string = { single_quoted_string | double_quoted_string }
+single_quoted_string = @{ "'" ~ (char_single)* ~ "'" }
+double_quoted_string = @{ "\"" ~ (char_double)* ~ "\"" }
+
+pair = { (k_string | identifier) ~ COLON ~ value }
+
+// Identifier(json5 allow unquoted key)
+// Identifier rule reference ECMAScript 5.1,
+// here simplified: the first character is ASCII letter, $ or _, and the following characters can include numbers
+identifier = { ident_start ~ ident_continue* }
+ident_start = { ASCII_ALPHA | "_" | "$" }
+ident_continue = { ASCII_ALPHANUMERIC | "_" | "$" }
+
+char_single = { !( "'" | "\\" ) ~ ANY | "\\" ~ escape_sequence }
+char_double = { !( "\"" | "\\" ) ~ ANY | "\\" ~ escape_sequence }
+
+escape_sequence = { "\"" | "'" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | "u" ~ ASCII_HEX_DIGIT{4} }
+
+number = @{ ("+" | "-")? ~ (hex_number | decimal_number) }
+hex_number = { "0" ~ ("x" | "X") ~ ASCII_HEX_DIGIT+ }
+decimal_number = { ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
+
+boolean = { "true" | "false" }
+null = { "null" }

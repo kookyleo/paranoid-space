@@ -5,6 +5,8 @@ use unicode_width::UnicodeWidthChar;
 // 声明模块
 pub mod markdown;
 pub mod html;
+mod json5;
+mod json;
 
 // Re-export 主要函数
 pub use markdown::spacing_markdown;
@@ -71,7 +73,7 @@ pub fn spacing(text: &str) -> String {
                         '，', '。', '！', '？', '：', '；', '“', '”', '‘', '’', '《', '》', '【',
                         '】', '（', '）', '—', '…', '～', '·', '、',
                     ];
-                    let special_cur_half = vec![',', '.', '!', '?', ':', ';', '"', '\''];
+                    let special_cur_half = vec![',', '.', '!', '?', ':', ';', '"', '\'', '\n', '\r', '\t'];
 
                     // special case：货币符号后跟数字不加空格
                     let is_currency_before_number =
@@ -84,6 +86,7 @@ pub fn spacing(text: &str) -> String {
                     {
                         result.push(' ');
                     }
+
                     result.push(cur_ch);
                     prev = Some(cur_ch);
                     continue;
@@ -138,10 +141,6 @@ pub fn spacing(text: &str) -> String {
             }
         }
     }
-    // special case: if the last char is space, remove it
-    if result[result.len() - 1] == ' ' {
-        result.pop();
-    }
 
     // 将结果 Vec 转换为字符串
     result.into_iter().collect()
@@ -150,6 +149,36 @@ pub fn spacing(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_spacing_comments() {
+        assert_eq!(spacing("/* block comment */"), "/* block comment */");
+        assert_eq!(spacing("/* block 注释 */"), "/* block 注释 */");
+        assert_eq!(spacing("// line comment"), "// line comment");
+        assert_eq!(spacing("// line 注释"), "// line 注释");
+    }
+
+    #[test]
+    fn test_end_space() {
+        assert_eq!(spacing("a "), "a ");
+        assert_eq!(spacing("a  "), "a  ");
+        assert_eq!(spacing("a啊 "), "a 啊 ");
+    }
+
+    #[test]
+    fn test_newline_or_tab() {
+        assert_eq!(CharWidth::from_char('\n'), CharWidth::Half);
+        assert_eq!(CharWidth::from_char('\r'), CharWidth::Half);
+        assert_eq!(CharWidth::from_char('\t'), CharWidth::Half);
+
+        assert_eq!(spacing("a\nb"), "a\nb");
+        assert_eq!(spacing("a\rb"), "a\rb");
+        assert_eq!(spacing("a\tb"), "a\tb");
+
+        assert_eq!(spacing("中\nb"), "中\nb");
+        assert_eq!(spacing("中\rb"), "中\rb");
+        assert_eq!(spacing("中\tb"), "中\tb");
+    }
 
     #[test]
     fn test_char_width() {

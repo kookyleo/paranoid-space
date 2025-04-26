@@ -1,0 +1,58 @@
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+
+// ==== Comments ====
+
+// Single line comment, exclude doc comment ///
+line_comment = @{ "//" ~ !"/" ~ (!("\n" | "\r") ~ ANY)* }
+
+// Single line doc comment ///
+line_doc_comment = @{ "///" ~ (!("\n" | "\r") ~ ANY)* }
+
+// Block comment, support nested
+block_comment = @{ "/*" ~ block_comment_inner* ~ "*/" }
+block_comment_inner = _{ block_comment | (!("/*" | "*/") ~ ANY) }
+
+// Block doc comment, support nested block comment and block doc comment
+block_doc_comment = @{ "/**" ~ block_doc_comment_inner* ~ "*/" }
+block_doc_comment_inner = _{ block_doc_comment | block_comment | (!("/*" | "*/") ~ ANY) }
+
+// Total comment rule
+comment = { line_comment | block_comment | line_doc_comment | block_doc_comment }
+
+// ==== Strings ====
+
+// Normal string escape sequence, support Unicode and hexadecimal
+string_escape = { "\\" ~ ( "\"" | "\\" | "n" | "r" | "t" | "0" | "x" ~ ASCII_HEX_DIGIT{2} | "u" ~ "{" ~ ASCII_HEX_DIGIT+ ~ "}" | "'" ) }
+
+// Normal string inner content (escape or non-quote character)
+string_inner = { (string_escape | !("\"") ~ ANY)* }
+
+// Normal string literal, capture including quotes
+string_literal = @{ "\"" ~ string_inner ~ "\"" }
+
+// Raw string, dynamic match any number of #
+raw_string = @{
+    "r" ~ PUSH("#"*) ~ "\""    // Record the number of # at the beginning of the stack
+    ~ raw_string_inner
+    ~ "\"" ~ POP              // Match the end of " and the corresponding number of #
+}
+
+// Raw string inner content, cannot appear end symbol (" + stack top #)
+raw_string_inner = @{
+    (!("\"" ~ PEEK) ~ ANY)*   // As long as it is not the end symbol, it matches
+}
+
+// Total string rule
+string = { string_literal | raw_string }
+
+// ==== Other code ====
+
+// Other code characters that are not comments or strings
+other_char = { !( "//" | "/*" | "\"" | "r" ) ~ ANY }
+other_code = { other_char+ }
+
+// ==== Top level ====
+
+rust_token = { comment | string | other_code }
+
+program = { SOI ~ (WHITESPACE* ~ rust_token)* ~ WHITESPACE* ~ EOI }
