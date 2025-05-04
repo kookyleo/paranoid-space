@@ -22,7 +22,7 @@ attribute = { attribute_name ~ (attribute_assign ~ attribute_value)? }
 
 // Tags
 tag_name = @{ ASCII_ALPHANUMERIC+ | ("_" | "-" | ":") ~ ASCII_ALPHANUMERIC+ }
-void_tag_name = @{ "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "keygen" | "link" | "meta" | "param" | "source" | "track" | "wbr" }
+// void_tag_name = @{ "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "keygen" | "link" | "meta" | "param" | "source" | "track" | "wbr" }
 
 left_tag_start = { "<" ~ tag_name }
 attributes = _{ (WHITESPACE* ~ attribute)* } // Use WHITESPACE*, allow zero attributes, silent
@@ -30,7 +30,7 @@ left_tag_end = { WHITESPACE* ~ ">" }
 right_tag = { "</" ~ tag_name ~ WHITESPACE* ~ ">" }
 //// self_closing_tag_end = _{ WHITESPACE* ~ "/>" } // Unused because self_closing_tag is unused
 
-void_element_start = @{ "<" ~ void_tag_name }
+void_element_start = @{ "<" ~ tag_name }
 // Define the possible endings for a void element
 void_element_end = @{ WHITESPACE* ~ (">" | "/>") }
 
@@ -55,7 +55,7 @@ text = { (!("<" | "&") ~ ANY)+ } // Non-atomic text
 html_entity = @{ "&" ~ ( ASCII_ALPHANUMERIC+ | "#" ~ ASCII_DIGIT+ | "#x" ~ ASCII_HEX_DIGIT+) ~ ";" }
 
 // Main structure
-element = { script_tag | style_tag | void_element | left_tag ~ content ~ right_tag } 
+element = { script_tag | style_tag | left_tag ~ content ~ right_tag | void_element } 
 content = { (element | text | COMMENT | html_entity)* }
 
 doctype_content = _{ (!">" ~ ANY)* } // Content inside <!DOCTYPE ... >

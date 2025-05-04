@@ -325,4 +325,15 @@ mod tests {
         let expected7 = "<input value=\"\">"; // Empty attribute value
         assert_eq!(process(input7).unwrap(), expected7);
     }
+
+    #[test]
+    fn test_simple() {
+        let input = "<!DOCTYPE html>\n<html>\n<head>\n<title>PHP语法综合示例</title>\n</head>\n<body></body></html>";
+        let expected = "<!DOCTYPE html>\n<html>\n<head>\n<title>PHP 语法综合示例</title>\n</head>\n<body></body></html>";
+        assert_eq!(process(input).unwrap(), expected);
+
+        let input = "<!DOCTYPE html>\n<html>\n<head>\n<title>PHP语法综合示例</title>\n</head>\n<body>";
+        let expected = "<!DOCTYPE html>\n<html>\n<head>\n<title>PHP 语法综合示例</title>\n</head>\n<body>";
+        assert_eq!(process(input).unwrap(), expected);
+    }
 }

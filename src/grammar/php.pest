@@ -2,49 +2,84 @@
 
 // Make WHITESPACE non-silent to preserve it in the AST
 WHITESPACE = { (" " | "\t" | "\r" | "\n")+ }
+NEWLINE = _{ "\r\n" | "\n" }
 
 // PHP Tags - simplified for common cases
 php_start_tag = { "<?php" | "<?=" } // <? is deprecated and often disabled
-php_end_tag = { "?>" }
+php_end_tag = { "?>" | EOI }
 
 // Define atomic rules for quotes
 SQ = _{ "'" }
 DQ = _{ "\"" }
+
+// Define identifier for variables and doc strings
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 // --- PHP Content Rules ---
 // These rules apply *inside* <?php ... ?> tags
 
 // Comments
 php_comment = { php_line_comment | php_block_comment }
-php_line_comment = { ("//" | "#") ~ (!("\r" | "\n") ~ ANY)* }
+php_line_comment = { ("//" | "#") ~ (!("\r" | "\n" | EOI) ~ ANY)* }
 php_block_comment = { "/*" ~ php_block_comment_inner* ~ "*/" }
 php_block_comment_inner = { !( "*/" ) ~ ANY } // Match anything inside /* */ that isn't */
 
+// Variable Syntax (Simplified)
+variable_simple = @{ "$" ~ identifier }
+// Simplifed expression for complex variables for now
+variable_complex_expr_inner = { (!"}" ~ ANY)+ }
+variable_complex = { "${" ~ variable_complex_expr_inner ~ "}" }
+variable = { variable_simple | variable_complex }
+
+// Escape sequences for DQ strings and Heredoc
+escape_sequence = _{ "\\" ~ (DQ | "\\" | "$" | "n" | "r" | "t" | "v" | "f" | "x" ~ ASCII_HEX_DIGIT{1,2} | "u" ~ "{" ~ ASCII_HEX_DIGIT+ ~ "}" | ASCII_OCT_DIGIT{1,3}) }
+
+normal_text = { (!DQ ~ "\\" ~ ANY) | (!DQ ~ ANY) }
+
 // Strings (Simplified - focusing on delimiters and basic escapes)
-php_string = { php_single_quoted_string | php_double_quoted_string }
+php_string = { php_single_quoted_string | php_double_quoted_string | php_doc_string }
 
 // String Content Rules - Match anything until the closing delimiter, handling escapes
 // Use atomic quote rules SQ and DQ to avoid range ambiguity
 php_sq_inner = { "\\" ~ (SQ | "\\") | (!SQ ~ ANY) }
-php_dq_inner = { "\\" ~ (DQ | "\\") | (!DQ ~ ANY) }
+// Updated dq_inner to support variables and more escapes
+php_dq_inner = _{ escape_sequence | variable | normal_text } // Adjusted to prevent matching lone backslash
 
 // String Rules using inner content definition
 php_single_quoted_string = { SQ ~ php_sq_inner* ~ SQ }
 php_double_quoted_string = { DQ ~ php_dq_inner* ~ DQ }
 
+// Heredoc / Nowdoc Syntax
+heredoc_start = { "<<<" ~ WHITESPACE* ~ identifier ~ NEWLINE }
+nowdoc_start = { "<<<'" ~ identifier ~ "'" ~ NEWLINE }
+// Matches the closing identifier on its own line, optionally followed by ; and newline
+// Note: This doesn't enforce matching the start/end identifiers in pure pest easily.
+doc_end = _{ NEWLINE ~ identifier ~ (";")? ~ (NEWLINE | EOI) }
+
+// Content within heredoc (allows variable interpolation and escapes)
+heredoc_body_content = ${ escape_sequence | variable | !(doc_end) ~ ANY }
+// Content within nowdoc (literal, no interpolation or special escape handling)
+nowdoc_body_content = ${ !(doc_end) ~ ANY }
+
+heredoc = { heredoc_start ~ heredoc_body_content* ~ doc_end }
+nowdoc = { nowdoc_start ~ nowdoc_body_content* ~ doc_end }
+php_doc_string = { heredoc | nowdoc }
+
 // Define items that can appear in the PHP script body
-php_code_char = { !(php_end_tag | php_comment | php_string) ~ ANY } // A single non-special character
-php_script_body_item = _{ php_comment | php_string | php_code_char }
+// Updated php_code_char to be more specific
+php_code_char = { !(php_end_tag | php_comment | php_string | php_doc_string | "$" /* Start of var */ | "<" /* Start of tag? */ | "?" /* Start of tag? */ | "/" /* Start of comment? */ | "#" /* Start of comment? */ | "'" | "\"") ~ ANY }
+php_script_body_item = _{ php_comment | php_string | php_doc_string | variable | php_code_char+ } // Allow variables directly in code, group code chars
 
 // Body of a PHP script block - sequence of items up to the end tag
 php_script_body = { php_script_body_item* }
 
-// --- Top Level Rules ---
+// === Top Level Rules ===
 
 // A chunk of PHP code including tags
 php_chunk = { php_start_tag ~ php_script_body? ~ php_end_tag }
 
 // A chunk of HTML content (anything not starting a PHP tag)
+// Updated html_content_char slightly
 html_content_char = { !(php_start_tag) ~ ANY }
 html_chunk = { html_content_char+ }
 
