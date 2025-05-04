@@ -1,0 +1,62 @@
+// Refined Markdown Grammar for Paranoid Spacing
+
+WHITESPACE = { " " | "\t" }
+NEWLINE = { "\n" | "\r\n" | "\r" }
+
+// --- Inline Elements ---
+// Order matters: match more specific/longer patterns first.
+inline_code = @{ "`" ~ (!("`") ~ ANY)* ~ "`" }
+// Note: Simplified strong/emphasis content matching for now. Robust matching is complex.
+strong      = @{ ("**" | "__") ~ (!("**" | "__") ~ ANY)+ ~ ("**" | "__") }
+emphasis    = @{ ("*" | "_") ~ !WHITESPACE ~ (!("*" | "_") ~ ANY)+ ~ !WHITESPACE ~ ("*" | "_") }
+link        = { "[" ~ link_text ~ "]" ~ "(" ~ link_url ~ ")" }
+link_text   = { (!"]" ~ ANY)* }
+link_url    = { (!")" ~ ANY)* }
+image       = { "![" ~ image_alt ~ "]" ~ "(" ~ image_url ~ ")" }
+image_alt   = { (!"]" ~ ANY)* }
+image_url   = { (!")" ~ ANY)* }
+// Text fragment - Matches characters until a special inline start char or newline.
+// Use @ to capture the matched text.
+text        = @{ (!( "`" | "*" | "_" | "[" | "!" | NEWLINE ) ~ ANY)+ }
+
+inline = _{ inline_code | strong | emphasis | link | image | text }
+
+// --- Block Elements ---
+// Use @ to capture the full block for rules where internal spacing isn't needed (like code_block).
+// Code block content matching is simplified.
+code_block = @{ "```" ~ language? ~ NEWLINE ~ code_content? ~ "```" ~ NEWLINE* }
+language = { (!NEWLINE ~ ANY)+ }
+code_content = { (!(NEWLINE ~ "```") ~ ANY)* }
+
+heading = { heading_marker ~ inline+ ~ NEWLINE* }
+heading_marker = @{ "#"+ ~ WHITESPACE* }
+
+blockquote = { blockquote_marker ~ inline+ ~ NEWLINE* }
+blockquote_marker = @{ ">" ~ WHITESPACE* }
+
+// Lists are complex; keeping simple. Need grammar adjustment for nested lists.
+list_item = { list_marker ~ inline+ ~ NEWLINE* }
+list_marker = @{ ("- " | "* " | "+ " | numbered_marker) }
+numbered_marker = { ASCII_DIGIT+ ~ "." ~ WHITESPACE+ }
+
+task_item = { task_marker ~ inline+ ~ NEWLINE* }
+task_marker = @{ "- [" ~ ("x" | " ") ~ "]" ~ WHITESPACE* }
+
+horizontal_rule = @{ ("---" | "***" | "___") ~ NEWLINE* }
+
+// Paragraph: A sequence of inline elements, potentially spanning multiple lines,
+// terminated by a blank line or another block element.
+// Let's define it simply as one or more inline elements followed by newlines.
+paragraph = { inline+ ~ NEWLINE* }
+
+// --- Document Structure ---
+document = { SOI ~ (block | NEWLINE)* ~ EOI }
+block = _{ // Order matters: more specific blocks first
+    code_block | // Code blocks can contain lines starting with #, >, -
+    heading |
+    blockquote |
+    // list_item | // Defer complex list handling
+    // task_item |
+    horizontal_rule |
+    paragraph // Paragraph should be last
+}

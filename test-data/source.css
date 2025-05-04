@@ -1,0 +1,87 @@
+/* 包含中文&English 注释 */
+
+/* 字体名称中使用双引号和单引号 */
+body {
+    font-family: "微软雅黑", '宋体', Arial, sans-serif;
+}
+
+/* content 属性中使用双引号和单引号 */
+p::before {
+    content: "Tips:这是双引号字符串";
+    color: red;
+}
+
+p::after {
+    content: 'Tips:这是单引号字符串';
+    color: blue;
+}
+
+/* content 中包含引号需要转义 */
+.quote-example::before {
+    content: "他说：\"Hello,世界\"";
+}
+
+.quote-example::after {
+    content: '她回答：\'欢迎光临！\'';
+}
+
+/* 使用attr()引用属性值，属性值含引号 */
+a[title="更多信息"]::after {
+    content: " (" attr(title) ")";
+    color: green;
+}
+
+/* quotes属性定义引号样式，使用字符串 */
+blockquote {
+    quotes: "“" "”" "‘" "’";
+}
+
+blockquote::before {
+    content: open-quote;
+}
+
+blockquote::after {
+    content: close-quote;
+}
+
+/* url()中路径用字符串（双引号或单引号均可） */
+.logo {
+    background-image: url("images/logo.png");
+}
+
+.icon {
+    background-image: url('icons/icon.svg');
+}
+
+/* text-overflow自定义省略符，字符串形式 */
+.ellipsis {
+    text-overflow: "...";
+}
+
+/* 属性选择器中用单引号和双引号匹配属性值 */
+input[type='text'] {
+    border: 1px solid #ccc;
+}
+
+input[type="submit"] {
+    background-color: #4CAF50;
+}
+
+/* 计数器示例（保持之前内容） */
+body {
+    counter-reset: section-counter;
+}
+
+h1::after {
+    counter-increment: section-counter;
+    content: counter(section-counter) ". ";
+}
+
+/* Unicode转义示例 */
+.unicode-quote::before {
+    content: "\201C"; /* 左双引号" */
+}
+
+.unicode-quote::after {
+    content: "\201D"; /* 右双引号" */
+}

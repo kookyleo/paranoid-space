@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
-use paranoid_space::{spacing, spacing_html, spacing_markdown};
+use paranoid_space::{spacing, process_html, markdown};
 
 // 添加 diff 相关的依赖
 use console::Style;
@@ -31,8 +31,14 @@ fn process_content(content: &str, file_path: Option<&PathBuf>) -> String {
         Some(path) => {
             if let Some(extension) = path.extension() {
                 match extension.to_str() {
-                    Some("html") | Some("htm") => spacing_html(content),
-                    Some("md") | Some("markdown") => spacing_markdown(content),
+                    Some("html") | Some("htm") => match process_html(content) {
+                        Ok(processed) => processed,
+                        Err(e) => {
+                            eprintln!("Error processing HTML file {:?}: {}", path, e);
+                            content.to_string() // Return original content on error
+                        }
+                    },
+                    Some("md") | Some("markdown") => markdown::process(content),
                     _ => spacing(content),
                 }
             } else {

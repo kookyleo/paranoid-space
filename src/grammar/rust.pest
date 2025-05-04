@@ -1,23 +1,34 @@
-WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+WHITESPACE = { " " | "\t" | "\n" | "\r" }
+NEWLINE = _{ "\n" | "\r" }
+
+// Helper rule for sequences of hashes (not used directly in raw strings)
+hashes = { "#"* }
 
 // ==== Comments ====
 
-// Single line comment, exclude doc comment ///
-line_comment = @{ "//" ~ !"/" ~ (!("\n" | "\r") ~ ANY)* }
+line_comment = @{ "//" ~ !"/" ~ !"!" ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI) }
 
-// Single line doc comment ///
-line_doc_comment = @{ "///" ~ (!("\n" | "\r") ~ ANY)* }
+line_outer_doc_comment = @{ "///" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
+line_outer_doc_comment_block = ${ line_outer_doc_comment+ }
+line_inner_doc_comment = @{ "//!" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
+line_inner_doc_comment_block = ${ line_inner_doc_comment+ }
 
-// Block comment, support nested
-block_comment = @{ "/*" ~ block_comment_inner* ~ "*/" }
-block_comment_inner = _{ block_comment | (!("/*" | "*/") ~ ANY) }
+block_comment = ${ "/*" ~ block_comment_inner_chars ~ "*/" }
+block_comment_inner_chars = @{ (!("*/") ~ ANY)* }
 
-// Block doc comment, support nested block comment and block doc comment
-block_doc_comment = @{ "/**" ~ block_doc_comment_inner* ~ "*/" }
-block_doc_comment_inner = _{ block_doc_comment | block_comment | (!("/*" | "*/") ~ ANY) }
+block_outer_doc_comment = ${ "/**" ~ block_doc_comment_inner_line* ~ block_doc_comment_last_line ~ "*/" }
+block_inner_doc_comment = ${ "/*!" ~ block_doc_comment_inner_line* ~ block_doc_comment_last_line ~ "*/" }
+block_doc_comment_inner_line = @{ (!("*/") ~ !NEWLINE ~ ANY)* ~ NEWLINE }
+block_doc_comment_last_line = @{ (!("*/") ~ ANY)* }
 
-// Total comment rule
-comment = { line_comment | block_comment | line_doc_comment | block_doc_comment }
+comment = {
+    line_outer_doc_comment_block
+  | line_inner_doc_comment_block
+  | line_comment
+  | block_outer_doc_comment
+  | block_inner_doc_comment
+  | block_comment
+}
 
 // ==== Strings ====
 
@@ -25,34 +36,48 @@ comment = { line_comment | block_comment | line_doc_comment | block_doc_comment 
 string_escape = { "\\" ~ ( "\"" | "\\" | "n" | "r" | "t" | "0" | "x" ~ ASCII_HEX_DIGIT{2} | "u" ~ "{" ~ ASCII_HEX_DIGIT+ ~ "}" | "'" ) }
 
 // Normal string inner content (escape or non-quote character)
-string_inner = { (string_escape | !("\"") ~ ANY)* }
+string_inner = { (string_escape | (!"\"" ~ ANY))* }
 
-// Normal string literal, capture including quotes
 string_literal = @{ "\"" ~ string_inner ~ "\"" }
 
-// Raw string, dynamic match any number of #
-raw_string = @{
-    "r" ~ PUSH("#"*) ~ "\""    // Record the number of # at the beginning of the stack
-    ~ raw_string_inner
-    ~ "\"" ~ POP              // Match the end of " and the corresponding number of #
-}
+// Byte string: b"..."
+byte_string_escape = { "\\" ~ ( "\"" | "\\" | "n" | "r" | "t" | "0" | "x" ~ ASCII_HEX_DIGIT{2} | "'" ) }
+byte_string_inner = { (byte_string_escape | (!"\"" ~ ANY))* }
+byte_string = @{ "b" ~ "\"" ~ byte_string_inner ~ "\"" }
 
-// Raw string inner content, cannot appear end symbol (" + stack top #)
-raw_string_inner = @{
-    (!("\"" ~ PEEK) ~ ANY)*   // As long as it is not the end symbol, it matches
+// Raw string, dynamic match any number of #
+// Using PUSH/POP to ensure matching hash counts at start and end
+raw_string = ${ 
+    "r" ~ PUSH(hash_count) ~ "\"" ~ 
+    raw_string_inner ~
+    "\"" ~ POP 
 }
+hash_count = @{ "#"* }
+raw_string_inner = @{ (!("\"" ~ PEEK) ~ ANY)* } // Match anything unless it's the closing quote + hashes
+
+// Raw byte string: br#"..."#
+raw_byte_string = ${ 
+    "br" ~ PUSH(hash_count) ~ "\"" ~ 
+    raw_byte_string_inner ~
+    "\"" ~ POP 
+}
+raw_byte_string_inner = @{ (!("\"" ~ PEEK) ~ ANY)* } // Match anything unless it's the closing quote + hashes
 
 // Total string rule
-string = { string_literal | raw_string }
+string = { 
+    raw_byte_string
+    | raw_string
+    | byte_string
+    | string_literal
+    // | char_literal // TODO
+}
 
 // ==== Other code ====
 
 // Other code characters that are not comments or strings
-other_char = { !( "//" | "/*" | "\"" | "r" ) ~ ANY }
+other_char = { !( "//" | "/*" | "\"" | "r#" | "r\"" | "br#" | "br\"" | "b\"" | "'" ) ~ ANY } 
 other_code = { other_char+ }
 
 // ==== Top level ====
 
-rust_token = { comment | string | other_code }
-
-program = { SOI ~ (WHITESPACE* ~ rust_token)* ~ WHITESPACE* ~ EOI }
+program = { SOI ~ (comment | string | other_code)* ~ EOI }

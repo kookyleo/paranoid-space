@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HTML 语法示意</title>
+
+  <!-- HTML 单行注释示例 -->
+  <!-- 这是 head 区域的注释 -->
+
+  <style>
+    /* CSS 多行注释示例 */
+    body {
+      font-family: "微软雅黑", Arial, sans-serif;
+      background-color: #f9f9f9;
+      color: #333;
+      margin: 20px;
+    }
+    p.inline-style {
+      color: blue; /* 内联样式示例 */
+      font-size: 18px;
+    }
+    /* 使用转义字符和字符串示例 */
+    .quote::before {
+      content: "\""; /* 双引号字符串 */
+    }
+    .quote::after {
+      content: "这里被 Quoted";
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 
+    多行 HTML 注释示例
+    这段注释不会被浏览器渲染
+  -->
+
+  <h1 id="myH">欢迎来到 HTML 语法示意</h1>
+
+  <p class="inline-style">
+    这是一个带有 <strong>InlineStyle</strong> 的段落。
+  </p>
+
+  <p>字符串示例：包含单引号 ' 和双引号 "，以及转义字符 \\。</p>
+
+  <p class="quote">这是带引号的文本示例</p>
+
+  <!-- 注释中也可以隐藏代码 -->
+  <!-- <p>这段代码被注释，不会显示</p> -->
+
+  <button id="btn">点击我</button>
+
+  <script>
+    // JavaScript 单行注释示例
+    /*
+      JavaScript 多行注释示例
+      下面演示字符串、变量、函数和事件绑定
+    */
+
+    // 定义字符串变量，包含单双引号和转义字符
+    let greeting = "Hello, \"世界\"! 这是一个包含 '单引号' 和 \\ 反斜杠的字符串。";
+
+    // 函数示例
+    function changeContent() {
+      // 修改标题内容
+      document.getElementById("myH").innerHTML = greeting;
+    }
+
+    // 绑定按钮点击事件
+    document.getElementById("btn").addEventListener("click", changeContent);
+
+    // 模板字符串示例
+    let name = "小明";
+    let welcomeMsg = `欢迎，${name}！
+这是多行字符串示例。`;
+
+    console.log(welcomeMsg);
+
+  </script>
+
+</body>
+</html>

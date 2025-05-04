@@ -23,3 +23,5 @@ target/
 .cursorignore
 .idea/
 .vscode/
+
+.windsurfrules

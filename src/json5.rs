@@ -216,4 +216,19 @@ mod tests {
         let json5_invalid = r#"{ "a": 1, "b": 2, }"#;
         assert!(!process(json5_invalid).is_err());
     }
+
+    #[test]
+    fn test_line_continuation() {
+        // 测试 JSON5 中的反斜杠换行特性
+        let json5_with_line_continuation = r#"{
+            "description": "这是一个很长的描述，\
+可以使用反斜杠进行换行"
+        }"#;
+        let expected_json5 = r#"{
+            "description": "这是一个很长的描述，\
+可以使用反斜杠进行换行"
+        }"#;
+        let processed_json5 = process(json5_with_line_continuation).expect("处理带有反斜杠换行的 JSON5 失败");
+        assert_eq!(processed_json5, expected_json5);
+    }
 }

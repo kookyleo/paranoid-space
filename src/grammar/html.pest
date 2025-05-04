@@ -1,0 +1,65 @@
+// Define whitespace rule, often silent (_)
+WHITESPACE = { " " | "\t" | "\r" | "\n" }
+
+// Define what can be inside a comment, ensuring it doesn't match the closing tag
+comment_inner = { !( "-->" ) ~ ANY }
+
+// HTML Comment
+COMMENT = ${ "<!--" ~ comment_inner* ~ "-->" } // Use negative lookahead
+
+// String Literals (used in attributes)
+double_quoted_string = { "\"" ~ inner_double_string* ~ "\"" }
+inner_double_string = { (!"\"" ~ ANY) }
+single_quoted_string = { "'" ~ inner_single_string* ~ "'" }
+inner_single_string = { (!"'" ~ ANY) }
+string = { double_quoted_string | single_quoted_string }
+
+// Attribute
+attribute_name = @{ ASCII_ALPHANUMERIC+ | ("_" | "-") ~ ASCII_ALPHANUMERIC+ }
+attribute_value = { string | (!WHITESPACE ~ !">" ~ ANY)+ }
+attribute_assign = { "=" }
+attribute = { attribute_name ~ (attribute_assign ~ attribute_value)? }
+
+// Tags
+tag_name = @{ ASCII_ALPHANUMERIC+ | ("_" | "-" | ":") ~ ASCII_ALPHANUMERIC+ }
+void_tag_name = @{ "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "keygen" | "link" | "meta" | "param" | "source" | "track" | "wbr" }
+
+left_tag_start = { "<" ~ tag_name }
+attributes = _{ (WHITESPACE* ~ attribute)* } // Use WHITESPACE*, allow zero attributes, silent
+left_tag_end = { WHITESPACE* ~ ">" }
+right_tag = { "</" ~ tag_name ~ WHITESPACE* ~ ">" }
+//// self_closing_tag_end = _{ WHITESPACE* ~ "/>" } // Unused because self_closing_tag is unused
+
+void_element_start = @{ "<" ~ void_tag_name }
+// Define the possible endings for a void element
+void_element_end = @{ WHITESPACE* ~ (">" | "/>") }
+
+left_tag = { left_tag_start ~ attributes ~ left_tag_end }
+void_element = { void_element_start ~ attributes ~ void_element_end }
+
+// Special Tags: Script and Style
+script_tag_start = { "<script" ~ attributes? ~ left_tag_end }
+script_tag_end = { "</script>" }
+script_content = { (!script_tag_end ~ ANY)* }
+script_tag = ${ script_tag_start ~ script_content ~ script_tag_end } // Make atomic again
+
+style_tag_start = { "<style" ~ attributes? ~ left_tag_end }
+style_tag_end = { "</style>" }
+style_content = { (!style_tag_end ~ ANY)* }  // Non-silent rule for content
+style_tag = { style_tag_start ~ style_content ~ style_tag_end } // Make atomic again
+
+// General Content
+text = { (!("<" | "&") ~ ANY)+ } // Non-atomic text
+
+// New rule for HTML entities
+html_entity = @{ "&" ~ ( ASCII_ALPHANUMERIC+ | "#" ~ ASCII_DIGIT+ | "#x" ~ ASCII_HEX_DIGIT+) ~ ";" }
+
+// Main structure
+element = { script_tag | style_tag | void_element | left_tag ~ content ~ right_tag } 
+content = { (element | text | COMMENT | html_entity)* }
+
+doctype_content = _{ (!">" ~ ANY)* } // Content inside <!DOCTYPE ... >
+doctype = { "<!DOCTYPE" ~ WHITESPACE* ~ doctype_content ~ ">" } // Allow <!DOCTYPE html>, change WHITESPACE+ to WHITESPACE*
+
+// High-level structure
+html = { SOI ~ doctype? ~ (element | text | COMMENT | html_entity)* ~ EOI }

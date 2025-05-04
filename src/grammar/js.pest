@@ -1,0 +1,46 @@
+// Define fundamental atoms and whitespace handling (implicitly skipped)
+WHITESPACE = { " " | "\t" | "\r" | "\n" } // Whitespace is silent
+HEXDIG = _{ ASCII_HEX_DIGIT }
+NEWLINE = _{ "\n" | "\r\n" }
+
+// --- Content Rules ---
+// These rules capture the actual content we want to process with `spacing`.
+// They are NOT silent (`_`) and NOT atomic (`@`).
+line_comment_content = { (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI) }
+block_char = { !("*/") ~ ANY } // Explicit non-silent rule for block comment content
+block_comment_content = { block_char* }
+// Char rules remain silent as they are just helpers for content rules
+line_continuation = _{ "\\" ~ NEWLINE }
+escape_sequence = _{ "\\" ~ ("\"" | "'" | "`" | "\\" | "n" | "r" | "t" | "b" | "f" | "v" | "0" | ("x" ~ HEXDIG{2}) | ("u" ~ HEXDIG{4}) | ("u{" ~ HEXDIG+ ~ "}") ) }
+double_string_char = _{ line_continuation | escape_sequence | (!("\"" | "\\") ~ ANY) }
+single_string_char = _{ line_continuation | escape_sequence | (!("'" | "\\") ~ ANY) }
+template_expression = { "${" ~ ( !"}" ~ ANY )* ~ "}" } // Keep expressions silent for now
+template_literal_char = { template_expression | line_continuation | escape_sequence | ("$" ~ !"{") | (!("`" | "\\" | "$") ~ ANY) }
+// String content rules
+double_string_content = { double_string_char* }
+single_string_content = { single_string_char* }
+template_literal_content = { template_literal_char* }
+
+// --- Container Rules ---
+// These rules define the overall structure (delimiters + content).
+// They are NOT atomic (`@`) so we can access their inner content pairs.
+line_comment = ${ "//" ~ line_comment_content }
+
+block_comment = { "/*" ~ block_comment_content ~ "*/" }
+comment = { line_comment | block_comment } // Grouping rule
+
+// 修改字符串规则，使其能够处理跨行字符串，但不使用 @ 以保留内部结构
+double_quoted_string = ${ "\"" ~ double_string_content ~ "\"" }
+single_quoted_string = ${ "'" ~ single_string_content ~ "'" }
+template_literal = ${ "`" ~ template_literal_content ~ "`" }
+string = { double_quoted_string | single_quoted_string | template_literal } // Grouping rule
+
+ELSE = { !comment ~ !string ~ ANY }
+
+// --- Top-level Program ---
+// We only care about 'comment' and 'string' items at the top level for processing.
+item = _{ comment | string | ELSE }
+// Match items or silently skip any other character.
+// Note: WHITESPACE is already silent, so it's skipped automatically.
+// Using `ANY` helps consume characters not part of comments/strings.
+program = _{ SOI ~ item* ~ EOI }

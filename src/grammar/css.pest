@@ -1,0 +1,30 @@
+// Silent rules - these are skipped
+NEWLINE = _{ "\n" | "\r\n" }
+WHITESPACE = { (" " | "\t" | NEWLINE)+ }
+
+_EOI = { EOI } // Define a silent version of EOI
+
+// Atomic, visible tokens
+COMMENT = { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
+// --- String Definitions (Refactored) ---
+// Characters allowed inside strings
+line_continuation = _{ "\\" ~ NEWLINE }
+char_double = { !("\"" | "\\") ~ ANY } // Any char except " or \
+char_single = { !("'" | "\\") ~ ANY } // Any char except ' or \
+escape =      { "\\" ~ ANY }         // Any escaped char (e.g., \", \', \\, \n)
+
+// String rules using the character definitions
+double_quoted_string = ${ "\"" ~ (line_continuation | char_double | escape)* ~ "\"" } // 使用 $ 而非 @ 以保留内部结构
+single_quoted_string = ${ "'" ~ (line_continuation | char_single | escape)* ~ "'" } // 使用 $ 而非 @ 以保留内部结构
+
+// Combined STRING rule (non-silent)
+STRING = { double_quoted_string | single_quoted_string }
+// --- End String Definitions ---
+
+// Catch-all for any other single character that wasn't matched above
+ELSE_CONTENT = { ANY } // Simplified back to single char, non-atomic
+
+// Main CSS structure: sequence of comments, strings, or other content
+// WHITESPACE is automatically skipped because it's a silent rule (_)
+css = { SOI ~ (COMMENT | STRING | ELSE_CONTENT)* ~ EOI }
