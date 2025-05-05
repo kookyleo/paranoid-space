@@ -38,7 +38,7 @@ $nowdocStr = <<<'EOD'
 EOD;
 
 // 输出变量和字符串
-echo "<h2>变量输出示例</h2>";
+echo "<h2>变量Output示例</h2>";
 echo "整数变量: $intVar<br>";
 echo "浮点数变量: $floatVar<br>";
 echo "双引号字符串: $stringVar1<br>";

@@ -6,49 +6,65 @@ use pest::iterators::Pair;
 use pest_derive::Parser;
 
 // Import the HTML processor
-use crate::{html, spacing}; // Assuming html.rs provides a public `process` function
+use crate::html; // Assuming html.rs provides a public `process` function
 
 #[derive(Parser)]
 #[grammar = "grammar/php.pest"]
 struct PhpParser;
 
+fn spacing(input: &str) -> String {
+    dbg!(&input);
+    if let Ok(parsed) = html::process(input) {
+        dbg!(&parsed);
+        return parsed;
+    }
+    input.to_string()
+}
+
 fn process_string(pair: Pair<Rule>) -> String {
     let mut result = String::new();
-
-    dbg!(&pair);
-
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {
-            Rule::heredoc => {
-                dbg!(&inner_pair);
+            Rule::heredoc_plain_chunk => {
                 result.push_str(&spacing(inner_pair.as_str()));
             }
-            Rule::nowdoc => {
-                result.push_str(&spacing(inner_pair.as_str()));
-            }
-            Rule::php_single_quoted_string => {
+            Rule::nowdoc_body_content => {
                 result.push_str(&spacing(inner_pair.as_str()));
             }
             Rule::php_double_quoted_string => {
-                result.push_str("\"");
-                for inner in inner_pair.into_inner() {
-                    match inner.as_rule() {
-                        Rule::normal_text => {
-                            result.push_str(&spacing(inner.as_str()));
+                result.push('"');
+                for dq_inner in inner_pair.into_inner() {
+                    match dq_inner.as_rule() {
+                        Rule::php_dq_normal_text => {
+                            result.push_str(&spacing(dq_inner.as_str()));
                         }
                         _ => {
-                            result.push_str(inner.as_str());
+                            result.push_str(dq_inner.as_str());
                         }
                     }
                 }
-                result.push_str("\"");
+                result.push('"');
             }
+            Rule::php_single_quoted_string => {
+                result.push('\'');
+                for sq_inner in inner_pair.into_inner() {
+                    match sq_inner.as_rule() {
+                        Rule::php_sq_normal_text => {
+                            result.push_str(&spacing(sq_inner.as_str()));
+                        }
+                        _ => {
+                            result.push_str(sq_inner.as_str());
+                        }
+                    }
+                }
+                result.push('\'');
+            }
+            // variable
             _ => {
                 result.push_str(inner_pair.as_str());
             }
         }
     }
-
     result
 }
 
@@ -111,15 +127,8 @@ dbg!(&pairs);
                 result.push(spacing(pair.as_str()));
             }
             Rule::php_string => result.push(process_string(pair)),
-            Rule::php_doc_string => result.push(process_string(pair)),
             // Catch unhandled rules during development
             _ => {
-                // This case should ideally not be reached if the grammar is complete
-                // for the parsed rules. Pushing the string is a safe fallback.
-                println!(
-                    "Warning: Unhandled PHP rule: {:?}, pushing raw string.",
-                    pair.as_rule()
-                );
                 result.push(pair.as_str().to_string());
             }
         }
@@ -229,14 +238,70 @@ echo 1;
     fn test_php_heredoc_string() {
         let input = r#"<?php
 $str = <<<EOT
-Hello$name
+你好$name，
+hello世界
 EOT;
 "#;
         let expected = r#"<?php
 $str = <<<EOT
-Hello$name
+你好$name，
+hello 世界
 EOT;
 "#;
+        assert_eq!(process(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_php_nowdoc_string() {
+        let input = r#"<?php
+$str = <<<'EOT'
+你好$name，
+hello世界
+EOT;
+"#;
+        let expected = r#"<?php
+$str = <<<'EOT'
+你好 $name，
+hello 世界
+EOT;
+"#;
+        assert_eq!(process(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_php_dq_inner() {
+        let input = r#"<?php $str = "$pos双引号String"; ?>"#;
+        let expected = r#"<?php $str = "$pos双引号 String"; ?>"#;
+        assert_eq!(process(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_php_sq_inner() {
+        let input = r#"<?php $str = '单引号String'; ?>"#;
+        let expected = r#"<?php $str = '单引号 String'; ?>"#;
+        assert_eq!(process(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_echo() {
+        let input = r#"<?php echo "NULL变量:"; ?>"#;
+        let expected = r#"<?php echo "NULL 变量:"; ?>"#;
+        assert_eq!(process(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_3() {
+        let input = r#"<?php echo $boolVar ? "真<br>" : "假<br>"; ?>"#;
+        let expected = r#"<?php echo $boolVar ? "真<br>" : "假<br>"; ?>"#;
+        assert_eq!(process(input).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_mix() {
+        let input = r#"<?php ?>
+<p>这是HTML内容，下面是 PHP 输出的内容：</p>"#;
+        let expected = r#"<?php ?>
+<p>这是 HTML 内容，下面是 PHP 输出的内容：</p>"#;
         assert_eq!(process(input).unwrap(), expected);
     }
 

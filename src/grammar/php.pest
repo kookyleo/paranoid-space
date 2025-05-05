@@ -1,87 +1,86 @@
 // src/grammar/php.pest
 
-// Make WHITESPACE non-silent to preserve it in the AST
-WHITESPACE = { (" " | "\t" | "\r" | "\n")+ }
-NEWLINE = _{ "\r\n" | "\n" }
+// Make WHITESPACE non-silent
+WHITESPACE = { " " | "\t" }
+// Make NEWLINE non-silent
+NEWLINE = { "\r\n" | "\n" | "\r" }
 
-// PHP Tags - simplified for common cases
-php_start_tag = { "<?php" | "<?=" } // <? is deprecated and often disabled
+// PHP Tags
+php_start_tag = { "<?php" | "<?=" }
 php_end_tag = { "?>" | EOI }
 
+// The main body of PHP code within tags
+// Allow specific elements OR NEWLINE, repeated at least once.
+php_script_body = { (php_comment | php_string | variable | php_code_char | NEWLINE)+ }
+
+// PHP Comments (kept simple for now)
+php_line_comment = { ("//" | "#") ~ (!NEWLINE ~ ANY)* }
+php_block_comment = { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+php_comment = { php_line_comment | php_block_comment }
+
+// Variables (simple example)
+variable = { "$" ~ identifier }
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+
+// Strings
 // Define atomic rules for quotes
 SQ = _{ "'" }
 DQ = _{ "\"" }
 
-// Define identifier for variables and doc strings
-identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+// Basic escape sequences
+escape_sequence = { "\\" ~ ANY } // Simplistic, includes \\, \", etc.
 
-// --- PHP Content Rules ---
-// These rules apply *inside* <?php ... ?> tags
-
-// Comments
-php_comment = { php_line_comment | php_block_comment }
-php_line_comment = { ("//" | "#") ~ (!("\r" | "\n" | EOI) ~ ANY)* }
-php_block_comment = { "/*" ~ php_block_comment_inner* ~ "*/" }
-php_block_comment_inner = { !( "*/" ) ~ ANY } // Match anything inside /* */ that isn't */
-
-// Variable Syntax (Simplified)
-variable_simple = @{ "$" ~ identifier }
-// Simplifed expression for complex variables for now
-variable_complex_expr_inner = { (!"}" ~ ANY)+ }
-variable_complex = { "${" ~ variable_complex_expr_inner ~ "}" }
-variable = { variable_simple | variable_complex }
-
-// Escape sequences for DQ strings and Heredoc
-escape_sequence = _{ "\\" ~ (DQ | "\\" | "$" | "n" | "r" | "t" | "v" | "f" | "x" ~ ASCII_HEX_DIGIT{1,2} | "u" ~ "{" ~ ASCII_HEX_DIGIT+ ~ "}" | ASCII_OCT_DIGIT{1,3}) }
-
-normal_text = { (!DQ ~ "\\" ~ ANY) | (!DQ ~ ANY) }
-
-// Strings (Simplified - focusing on delimiters and basic escapes)
-php_string = { php_single_quoted_string | php_double_quoted_string | php_doc_string }
-
-// String Content Rules - Match anything until the closing delimiter, handling escapes
-// Use atomic quote rules SQ and DQ to avoid range ambiguity
-php_sq_inner = { "\\" ~ (SQ | "\\") | (!SQ ~ ANY) }
-// Updated dq_inner to support variables and more escapes
-php_dq_inner = _{ escape_sequence | variable | normal_text } // Adjusted to prevent matching lone backslash
-
-// String Rules using inner content definition
+// Content inside single quotes (no interpolation, limited escapes)
+php_sq_normal_text = { (!"'" ~ ANY)+ } // Match chars that aren't '
+php_sq_inner = _{ escape_sequence | php_sq_normal_text }
 php_single_quoted_string = { SQ ~ php_sq_inner* ~ SQ }
+
+// Content inside double quotes (allows interpolation and more escapes)
+// Use php_code_char for non-special characters
+php_dq_normal_text = { (!("\"" | "\\" | "$") ~ ANY)+ } // Match chars that aren't ", \, or start of var
+php_dq_inner = _{ escape_sequence | variable | php_dq_normal_text }
 php_double_quoted_string = { DQ ~ php_dq_inner* ~ DQ }
 
-// Heredoc / Nowdoc Syntax
-heredoc_start = { "<<<" ~ WHITESPACE* ~ identifier ~ NEWLINE }
-nowdoc_start = { "<<<'" ~ identifier ~ "'" ~ NEWLINE }
-// Matches the closing identifier on its own line, optionally followed by ; and newline
-// Note: This doesn't enforce matching the start/end identifiers in pure pest easily.
-doc_end = _{ NEWLINE ~ identifier ~ (";")? ~ (NEWLINE | EOI) }
+// Heredoc / Nowdoc
+// Common end pattern: newline, identifier (matching the start), optional semicolon, followed by newline/EOI
+// Make body optional to handle empty heredocs/nowdocs
+heredoc = _{ heredoc_start ~ heredoc_body_content? ~ doc_end }
+nowdoc = _{ nowdoc_start ~ nowdoc_body_content? ~ doc_end }
 
-// Content within heredoc (allows variable interpolation and escapes)
-heredoc_body_content = ${ escape_sequence | variable | !(doc_end) ~ ANY }
-// Content within nowdoc (literal, no interpolation or special escape handling)
-nowdoc_body_content = ${ !(doc_end) ~ ANY }
+heredoc_start = @{ "<<<" ~ WHITESPACE? ~ PUSH(identifier) ~ NEWLINE }
+nowdoc_start = @{ "<<<'" ~ WHITESPACE? ~ PUSH(identifier) ~ "'" ~ NEWLINE }
 
-heredoc = { heredoc_start ~ heredoc_body_content* ~ doc_end }
-nowdoc = { nowdoc_start ~ nowdoc_body_content* ~ doc_end }
-php_doc_string = { heredoc | nowdoc }
+// End rule: Match newline, POP the identifier, optional ; and NEWLINE
+doc_end = { NEWLINE ~ POP ~ (";" ~ NEWLINE)? }
 
-// Define items that can appear in the PHP script body
-// Updated php_code_char to be more specific
-php_code_char = { !(php_end_tag | php_comment | php_string | php_doc_string | "$" /* Start of var */ | "<" /* Start of tag? */ | "?" /* Start of tag? */ | "/" /* Start of comment? */ | "#" /* Start of comment? */ | "'" | "\"") ~ ANY }
-php_script_body_item = _{ php_comment | php_string | php_doc_string | variable | php_code_char+ } // Allow variables directly in code, group code chars
+// Content rules: Use negative lookahead for the end sequence based on PEEK
+heredoc_end_lookahead = { NEWLINE ~ PEEK } // Lookahead for newline followed by the stack identifier
+// Define specific rules for interpolation within heredoc
+// heredoc_variable_braced = { "${" ~ expression ~ "}" } // Placeholder for braced expression
+heredoc_plain_chunk = @{ (!heredoc_end_lookahead ~ !("$" ~ identifier) /* ~ !"${" */ ~ ANY)+ } // Match non-variable, non-end chars, keep internal whitespace
 
-// Body of a PHP script block - sequence of items up to the end tag
-php_script_body = { php_script_body_item* }
+// Heredoc content is a sequence of plain text or variables
+heredoc_body_content = _{ (variable /* | heredoc_variable_braced */ | heredoc_plain_chunk)* }
+
+nowdoc_end_lookahead = { NEWLINE ~ PEEK }
+// Nowdoc content doesn't interpolate, so it's simpler. Still needs to avoid the end sequence.
+// Keep it atomic for now as it has no internal structure we need to parse separately.
+nowdoc_body_content = @{ (!nowdoc_end_lookahead ~ ANY)* }
+
+// General PHP String Rule
+php_string = { php_single_quoted_string | php_double_quoted_string | heredoc | nowdoc }
+
+// Character-level rule for general PHP code, excluding structure-defining elements
+php_code_char = { !(php_end_tag | php_comment | php_string | "$" /* Start of var */ | "<" /* Start of tag? */ | "/" /* Start of comment? */ | "#" /* Start of comment? */ | "'" | "\"" | NEWLINE | WHITESPACE) ~ ANY }
 
 // === Top Level Rules ===
 
-// A chunk of PHP code including tags
+// Represents a block of PHP code enclosed in tags
 php_chunk = { php_start_tag ~ php_script_body? ~ php_end_tag }
 
-// A chunk of HTML content (anything not starting a PHP tag)
-// Updated html_content_char slightly
-html_content_char = { !(php_start_tag) ~ ANY }
-html_chunk = { html_content_char+ }
+// Represents a block of HTML content
+html_chunk = { (!php_start_tag ~ ANY)+ }
 
-// The overall program structure
+// The overall program structure: zero or more HTML or PHP chunks
+// This IS the entry point.
 program = { SOI ~ (html_chunk | php_chunk)* ~ EOI }
