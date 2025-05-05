@@ -54,7 +54,7 @@ impl DocCommentBlock {
 
         // Join contents, process with markdown, and split back into lines
         let content_block = contents.join("");
-        let spaced_content_block = markdown::process(&content_block);
+        let spaced_content_block = markdown::process(&content_block).unwrap_or(content_block);
         let spaced_content_lines: Vec<String> = spaced_content_block
             .lines()
             .map(|s| s.to_string())

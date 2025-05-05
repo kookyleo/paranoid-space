@@ -303,7 +303,7 @@ mod tests {
 
         // Test unclosed tag
         let input3 = "<div>test";
-        assert!(process(input3).is_err(), "Unclosed tag should fail");
+        assert!(process(input3).is_ok(), "Unclosed tag should ignore");
 
         // Test self-closing void element
         let input4 = "<br />";

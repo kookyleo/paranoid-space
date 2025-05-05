@@ -5,19 +5,19 @@ use std::collections::VecDeque;
 use unicode_width::UnicodeWidthChar;
 
 // 声明模块
-pub mod html;
+mod html;
 mod json;
 mod json5;
 mod js; // Add js module declaration
-pub mod markdown;
+mod markdown;
 mod rust;
-pub mod css;
-pub mod php; // Add php module declaration
-
+mod css;
+mod php; // Add php module declaration
 // Re-export 主要函数
 pub use html::process as process_html;
 pub use markdown::process as process_markdown;
 pub use css::process as process_css;
+pub use js::process as process_js;
 pub use rust::process as process_rust;
 pub use json::process as process_json;
 pub use json5::process as process_json5;

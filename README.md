@@ -97,43 +97,72 @@ echo "这是一个Example" | paranoid-space -d
 
 ## 特殊文件格式支持
 
-工具会根据文件扩展名自动选择合适的处理方式：
+命令行工具会根据文件扩展名自动选择合适的处理方式：
 
-- **Markdown文件** (`.md`, `.markdown`) - 保留Markdown语法，只对文本内容添加空格
-- **HTML文件** (`.html`, `.htm`) - 保留HTML标签，只对文本内容添加空格
-- **普通文本文件** - 对整个内容进行处理
-
-例如，处理Markdown文件时，代码块和行内代码不会被修改，而只有普通文本段落会被添加空格。
+- **HTML 文件** (`.html`, `.htm`) - 调用 `process_html`，保留 HTML 标签，只对标签内的文本内容添加空格。
+- **Markdown 文件** (`.md`, `.markdown`) - 调用 `process_markdown`，保留 Markdown 语法（如代码块、行内代码、链接等），只对普通文本内容添加空格。
+- **其他文件** - 对于所有其他文件扩展名或没有扩展名的文件，会调用通用的 `spacing` 函数，对整个内容进行处理。这意味着对于 CSS, JS, PHP, Rust, JSON 等格式，其代码结构可能不会被正确保留，建议在代码中使用对应的特定处理函数。
 
 ## 在代码中使用
 
-可以在 Rust 项目中将本库作为依赖引入：
+可以在 Rust 项目中将本库作为依赖引入，并使用针对特定格式的函数：
 
 ```rust
-// 处理普通文本
-use paranoid_space::spacing;
-// 处理HTML文本
-use paranoid_space::spacing_html;
-// 处理Markdown文本
-use paranoid_space::spacing_markdown;
+use paranoid_space::{
+    spacing,        // 通用处理函数
+    process_html,   // 处理 HTML
+    process_markdown, // 处理 Markdown
+    process_css,    // 处理 CSS
+    process_rust,   // 处理 Rust
+    process_json,   // 处理 JSON
+    process_json5,  // 处理 JSON5
+    process_php,    // 处理 PHP
+    // 注意：目前还没有公开的 process_js 函数
+};
 
 fn main() {
     // 处理普通文本
     let text = "数字123与中文之间需要空格";
     let result = spacing(text);
     println!("{}", result);  // output: 数字 123 与中文之间需要空格
-    
-    // 处理HTML文本
+
+    // 处理 HTML 文本
     let html = "<div>这是中文English混合</div>";
-    let html_result = spacing_html(html);
-    println!("{}", html_result);  // output: <div>这是中文 English 混合</div>
-    
-    // 处理Markdown文本
+    let html_result = process_html(html).unwrap_or_else(|e| {
+        eprintln!("HTML processing error: {}", e);
+        html.to_string() // 错误时返回原始内容
+    });
+    println!("{}", html_result); // output: <div>这是中文 English 混合</div>
+
+    // 处理 Markdown 文本
     let md = "# 标题Title\n```code块不处理```";
-    let md_result = spacing_markdown(md);
-    println!("{}", md_result);  // output: # 标题 Title\n```code块不处理```
+    let md_result = process_markdown(md);
+    println!("{}", md_result); // output: # 标题 Title\n```code块不处理```
+
+    // 处理 CSS
+    let css = "body { font-family: \"微软雅黑\", Arial; } /* 注释comment */";
+    let css_result = process_css(css).unwrap_or_else(|e| {
+        eprintln!("CSS processing error: {}", e);
+        css.to_string()
+    });
+    println!("{}", css_result); // output: body { font-family: \"微软雅黑\", Arial; } /* 注释 comment */
+
+    // 处理 Rust 代码 (示例，具体效果取决于实现)
+    let rust_code = "fn main() { println!(\"你好world\"); }";
+    let rust_result = process_rust(rust_code).unwrap_or_else(|e| {
+        eprintln!("Rust processing error: {}", e);
+        rust_code.to_string()
+    });
+    println!("{}", rust_result); // output: fn main() { println!(\"你好 world\"); }
+
+    // 处理 PHP 代码 (示例)
+    let php_code = "<?php echo '你好'.'world'; ?>";
+    let php_result = process_php(php_code).unwrap_or_else(|e| {
+        eprintln!("PHP processing error: {}", e);
+        php_code.to_string()
+    });
+    println!("{}", php_result); // output: <?php echo '你好' . 'world'; ?> (假设它保留了语法结构)
 }
-```
 
 ## 许可证
 

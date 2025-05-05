@@ -116,17 +116,6 @@ mod tests {
         }
     }
 
-    // Helper function to check if parsing fails for a rule
-    fn assert_does_not_parse(rule: Rule, input: &str) {
-        match JsParser::parse(rule, input) {
-            Ok(pairs) => panic!(
-                "Expected parsing to fail for \"{}\" as {:?}, but it succeeded with: {:?}",
-                input, rule, pairs
-            ),
-            Err(_) => (), // Good, it failed
-        }
-    }
-
     // Test cases from before...
     #[test]
     fn test_parses_line_comment() {

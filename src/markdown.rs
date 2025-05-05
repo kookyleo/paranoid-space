@@ -1,6 +1,7 @@
 extern crate pest;
 
 use pest::Parser;
+use anyhow::{Result};
 use crate::spacing; // Import the spacing function
 
 #[derive(Parser)]
@@ -8,16 +9,16 @@ use crate::spacing; // Import the spacing function
 struct MarkdownParser;
 
 // Main processing function
-pub fn process(text: &str) -> String {
+pub fn process(text: &str) -> Result<String> {
     match MarkdownParser::parse(Rule::document, text) {
         Ok(pairs) => {
             // Process the parsed document, pair by pair
-            pairs.map(process_pair).collect()
+            Ok(pairs.map(process_pair).collect::<String>())
         }
         Err(e) => {
             // On parsing error, log it and return the original text
             eprintln!("Markdown Parse failed: {:?}", e);
-            text.to_string()
+            Err(e.into())
         }
     }
 }
@@ -133,7 +134,7 @@ mod tests {
     #[test]
     fn test_new_line(){
         let result = process("\nThis is a block doc comment\nThis is another line\n");
-        assert_eq!(result, "\nThis is a block doc comment\nThis is another line\n");
+        assert_eq!(result.unwrap(), "\nThis is a block doc comment\nThis is another line\n");
     }
 
     #[test]
@@ -182,7 +183,7 @@ fn main() {
 
 ![Alt text](/path/to/image.png)
 "#;
-        assert_eq!(process(input), expected);
+        assert_eq!(process(input).unwrap(), expected);
     }
 
     #[test]
@@ -226,7 +227,7 @@ fn main() {
 /// - item2
 "#;
 
-        let actual = process(input);
+        let actual = process(input).unwrap();
         assert_eq!(actual, expected); // Use the stored 'actual'
     }
 }
