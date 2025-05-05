@@ -13,6 +13,7 @@
 
 这是一个基于规则的项目，只是针对若干常见情况做了添加，或不添加空格的处理，不可能适用于所有情况。
 另外，它也还在开发中，受限于本人的精力，目前只实现了部分语言的部分情况。
+后续会随着工作需要，不断完善。
 欢迎提议、提交 PR，提交 Issue，一起完善它。
 
 ## 安装
@@ -123,7 +124,7 @@ use paranoid_space::{
     process_json,   // 处理 JSON
     process_json5,  // 处理 JSON5
     process_php,    // 处理 PHP
-    // 注意：目前还没有公开的 process_js 函数
+    process_js,     // 处理 JS
 };
 
 fn main() {
